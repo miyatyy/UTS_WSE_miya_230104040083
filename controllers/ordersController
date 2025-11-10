@@ -1,0 +1,111 @@
+// controllers/ordersController.js
+const fs = require('fs');
+const path = require('path');
+const dataFile = path.join(__dirname, '..', 'data', 'orders.json');
+const { validateOrderPayload } = require('../utils/validation');
+
+function readData() {
+  const raw = fs.readFileSync(dataFile, 'utf8');
+  return JSON.parse(raw);
+}
+
+function writeData(data) {
+  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), 'utf8');
+}
+
+exports.getAllOrders = (req, res) => {
+  try {
+    const orders = readData();
+    return res.status(200).json({ status: "success", data: { orders } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ status: "fail", message: "Internal server error" });
+  }
+};
+
+exports.getOrderById = (req, res) => {
+  try {
+    const orders = readData();
+    const id = Number(req.params.id);
+    const order = orders.find(o => o.id === id);
+    if (!order) {
+      return res.status(404).json({ status: "fail", message: "Order tidak ditemukan" });
+    }
+    return res.status(200).json({ status: "success", data: { order } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ status: "fail", message: "Internal server error" });
+  }
+};
+
+exports.createOrder = (req, res) => {
+  try {
+    const payload = req.body;
+    const validation = validateOrderPayload(payload);
+    if (!validation.valid) {
+      return res.status(400).json({ status: "fail", message: validation.message });
+    }
+
+    const orders = readData();
+    const newId = orders.length ? Math.max(...orders.map(o => o.id)) + 1 : 1;
+    const newOrder = {
+      id: newId,
+      product: String(payload.product).trim(),
+      quantity: Number(payload.quantity),
+      price: Number(payload.price)
+    };
+    orders.push(newOrder);
+    writeData(orders);
+    return res.status(201).json({ status: "success", data: { order: newOrder } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ status: "fail", message: "Internal server error" });
+  }
+};
+
+exports.updateOrder = (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const payload = req.body;
+    const validation = validateOrderPayload(payload);
+    if (!validation.valid) {
+      return res.status(400).json({ status: "fail", message: validation.message });
+    }
+
+    const orders = readData();
+    const idx = orders.findIndex(o => o.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ status: "fail", message: "Order tidak ditemukan" });
+    }
+
+    orders[idx] = {
+      id,
+      product: String(payload.product).trim(),
+      quantity: Number(payload.quantity),
+      price: Number(payload.price)
+    };
+    writeData(orders);
+    return res.status(200).json({ status: "success", data: { order: orders[idx] } });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ status: "fail", message: "Internal server error" });
+  }
+};
+
+exports.deleteOrder = (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const orders = readData();
+    const idx = orders.findIndex(o => o.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ status: "fail", message: "Order tidak ditemukan" });
+    }
+    orders.splice(idx, 1);
+    writeData(orders);
+    // sesuai spec: DELETE => 204 No Content
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ status: "fail", message: "Internal server error" });
+  }
+};
